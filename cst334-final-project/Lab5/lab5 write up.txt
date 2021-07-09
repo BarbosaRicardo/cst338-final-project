@@ -1,0 +1,32 @@
+/******************************************
+* @author Ricardo Barbosa 
+* @version 04.07.2020
+* Description: Answers to Lab 5 Questions
+******************************************/
+
+(1) Explain what happens when you run this threadHello.c program; can you list how many threads are created and what values of i are passed?
+
+Yes. One can the see the lists that are created and the values of i that are passed come from the 'for-loop'; which is 10. 
+
+(2) Do you get the same result if you run it multiple times?
+
+No. The processes are sharing memory within the critical section thus a race condition is enabled.  When a race condition is enabled, the processes are reading or writing shared data, and the result is dependent on which one runs when (IPC, Synchronization and Threads PDF). 
+
+(3) What if you are running other demanding processes when you run this program?
+
+The numbers vary once again. In some cases there were instances where there were less repeated outcomes; depending on the programs running (e.g., Photoshop, FAHControl, streaming Netflix). The parent processes might put the thread ahead of the parent based on the algorithm that is being used; two threads with the same number happening. 
+
+(4) The function go() has the parameter arg passed as a local variable.  Are these variables per-thread or shared? Where does the compiler store these variables' state?
+
+Parameters and local variables in a thread are per-thread state - where different threads have different values in their variables.  The compiler stores these variables on the thread's stack or in the processor registers.
+
+(5) The main() has local variable i. Is this variable per-thread or shared state? Where does the compiler store these variables' state?
+
+Parameters and local variables in a thread are per-thread state - where different threads have different values in their variables.  The compiler stores these variables on the thread's stack or in the processor registers.
+
+(6) Why do threads print some values of i? 
+
+This is an illustration of the general problem of concurrency and the race condition. Processes is being ran in different orders.
+
+
+
