@@ -1,0 +1,369 @@
+/*******************************************************************
+ * Pomodoro Timer 
+ * 
+ * @author Ricardo Barbosa 
+ * @version December 13, 2019
+ * 
+ * Description: A simple Pomodoro Timer to help you maintain 
+ * 		routine study breaks.
+ *
+ * Usage:	Set the timer to 25 minutes. Take a 3 minute break
+ * 		then come back and do another 25 minutes. After 4
+ * 		Pomodoro's, take a 30 minute break.  
+ ********************************************************************/
+import java.awt.BorderLayout;
+import java.awt.Container;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import javax.swing.*;
+import java.awt.Frame;
+import java.awt.Toolkit;
+import java.awt.event.*;
+import java.security.SecureRandom;
+import java.util.Random;
+import javax.swing.AbstractAction;
+
+public class Main {
+
+   private static final String TITLE = "Pomodoro";
+
+   public static void main(String[] arg){
+       System.out.println("Starting Pomodoro Timer...");
+       SwingUtilities.invokeLater(new Runnable() {
+           public void run() {
+               new PomodoroFrame(TITLE);
+           }
+       });
+   }
+}
+
+@SuppressWarnings("serial")
+class PomodoroFrame extends JFrame {
+
+   private static final String TIMER_DEFAULT_TEXT = "00:00";
+
+   private JButton jb_start = new JButton("Start");
+   private JButton jb_stop = new JButton("Stop");
+
+   private JTextField jtf_time_minutes = new JTextField(5);
+   private JLabel jl_time_counter = new JLabel(TIMER_DEFAULT_TEXT, JLabel.CENTER);
+
+   private TimeoutDialog jd_timeoutDialog;
+
+   private TimerLifecycle lifecycle;
+   private Timer timer;
+
+   private final JFrame me = this;
+   
+
+   private void init(){
+       // Configure Esc action
+       KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, false);
+       Action escapeAction = new AbstractAction() {
+           @Override
+           public void actionPerformed(ActionEvent e) {
+               stopTimer();
+           }
+       };
+       getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(escapeKeyStroke, "ESCAPE");
+       getRootPane().getActionMap().put("ESCAPE", escapeAction);
+       
+       // Timeout dialog
+       jd_timeoutDialog = new TimeoutDialog(me, "**Pomodoro**Complete**\n");
+
+       jb_start.setMnemonic('s');
+       getRootPane().setDefaultButton(jb_start);
+       jb_stop.setEnabled(false);
+
+       Font timerFont = new Font(Font.SANS_SERIF, Font.BOLD, 26);
+       jl_time_counter.setFont(timerFont);
+
+       jb_start.addActionListener(new ActionListener() {
+           @Override
+           public void actionPerformed(ActionEvent e) {
+               String minStr = jtf_time_minutes.getText();
+               int minutes = -1;
+
+               // Validation
+               String errorMessage = null;
+               try{
+                   minutes = Integer.parseInt(minStr);
+                   if(minutes < 1){
+                       errorMessage = "Value cannot be less than 1.";
+                   }
+                   else if(minutes > (24*60)){ // Cannot set value above 24hrs
+                       errorMessage ="Value cannot be more than 24 Hrs.";
+                   }
+               }
+               catch(NumberFormatException ex){
+                   errorMessage = "Value is not a number.";
+               }
+
+               if(errorMessage != null){
+                   JOptionPane.showMessageDialog(me, errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+                   jtf_time_minutes.requestFocus();
+                   return;
+               }
+
+               lifecycle = new TimerLifecycleImpl(minutes);
+               timer = new Timer(1000, new TimerAction(lifecycle));
+               timer.start();
+           }
+       });
+
+       jb_stop.addActionListener(new ActionListener() {
+           @Override
+           public void actionPerformed(ActionEvent e) {
+               stopTimer();
+           }
+       });
+   }
+   
+   private void stopTimer() {
+       if(timer != null && timer.isRunning()) {
+           timer.stop();
+           lifecycle.end(TimerEnd.CANCELLED);
+       }
+   }
+
+   class TimerLifecycleImpl implements TimerLifecycle{
+       final int minutes;
+
+       public TimerLifecycleImpl(int minutes) {
+           this.minutes = minutes;
+       }
+
+       @Override
+       public int getTimerMinute() {
+           return minutes;
+       }
+
+       @Override
+       public void start() {
+           jb_start.setEnabled(false);
+           jb_stop.setEnabled(true);
+           jtf_time_minutes.setEnabled(false);
+           jl_time_counter.setText(TimeUtil.getSecondsFormatted(minutes*60));
+       }
+
+       @Override
+       public void progressInSecond(final int second) {
+           jl_time_counter.setText(TimeUtil.getSecondsFormatted(second));
+       }
+
+       @Override
+       public void end(final TimerEnd type) {
+           jl_time_counter.setText(TIMER_DEFAULT_TEXT);
+           jb_start.setEnabled(true);
+           jb_stop.setEnabled(false);
+           jtf_time_minutes.setEnabled(true);
+           if(type == TimerEnd.TIMEOUT){
+               timer.stop();
+               jd_timeoutDialog.showMe();
+           }
+           jtf_time_minutes.requestFocus();
+       }
+   }
+
+   public PomodoroFrame(final String title){
+       super(title);
+
+       init();
+
+       Container c = this.getContentPane();
+       c.setLayout(new BorderLayout());
+
+       // North:
+       JPanel jp_north = new JPanel();
+       {
+           jp_north.setLayout(new FlowLayout(FlowLayout.LEFT));
+           JLabel jl = new JLabel("Timer (minutes): ");
+           jl.setLabelFor(jtf_time_minutes);
+           jl.setDisplayedMnemonic('t');
+           jp_north.add(jl);
+           jp_north.add(jtf_time_minutes);
+       }
+       c.add(jp_north, BorderLayout.NORTH);
+
+       // Center:
+       c.add(jl_time_counter, BorderLayout.CENTER);
+
+       // South:
+       JPanel jp_south = new JPanel();
+       {
+           jp_south.setLayout(new FlowLayout(FlowLayout.CENTER));
+           jp_south.add(jb_start);
+           jp_south.add(jb_stop);
+       }
+       c.add(jp_south, BorderLayout.SOUTH);
+
+       setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+       pack();
+       setLocationRelativeTo(null);
+       setResizable(false);
+       setVisible(true);
+   }
+}
+
+@SuppressWarnings("serial")
+class TimeoutDialog extends JDialog {
+
+   private static final String[] smilies = new String[]{"You did it! :-)", 
+   	"Come back in 5 min! :-(", "We'll start another 25 min! :-D", "Pomodoro rocks!:-O", 
+   	"Keep it up!:-*", "Break Time not Quit Time!:-/", "Let's keep it up!:P", 
+   	"Tomato Timer FTW! 8-)", "Don't waste your break!:-[", "Don't go too far!:'(", 
+   	"Have a snack!:-X", "Drink plenty of water!:-$", "Have a Merry Christmas Professor! :-!"};
+
+   private static final int DIALOG_WIDTH = 400;
+   private static final int DIALOG_HEIGHT = 300;
+
+   private JLabel jl = new JLabel("**POMODORO**DONE**\n", JLabel.CENTER);
+   private JButton jb = new JButton("Ok");
+
+   private Timer timer;
+
+   public TimeoutDialog(Frame owner, String title) {
+       super(owner, title);
+       setLocationRelativeTo(null);
+       setSize(DIALOG_WIDTH, DIALOG_HEIGHT);
+       setResizable(false);
+       setModal(true);
+       
+       getRootPane().setDefaultButton(jb);
+
+       addWindowListener(new WindowAdapter() {
+
+           @Override
+           public void windowClosing(WindowEvent e) {
+               closeDialog();
+           }
+           
+       });
+       
+       // Configure Esc action
+       KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, false);
+       Action escapeAction = new AbstractAction() {
+           @Override
+           public void actionPerformed(ActionEvent e) {
+               closeDialog();
+           }
+       };
+       getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(escapeKeyStroke, "ESCAPE");
+       getRootPane().getActionMap().put("ESCAPE", escapeAction);
+
+       Container c = getContentPane();
+       c.setLayout(new BorderLayout());
+
+       c.add(jl, BorderLayout.CENTER);
+
+       JPanel jp_south = new JPanel();
+       jp_south.setLayout(new FlowLayout(FlowLayout.CENTER));
+       jb.addActionListener(new ActionListener() {
+           @Override
+           public void actionPerformed(ActionEvent e) {
+               closeDialog();
+           }
+       });
+       jp_south.add(jb);
+       c.add(jp_south, BorderLayout.SOUTH);
+   }
+
+   private void closeDialog(){
+       if(timer != null && timer.isRunning()) {
+           timer.stop();
+       }
+       setVisible(false);
+   }
+
+   public void showMe(){
+       ActionListener l = new BeepAction();
+       timer = new Timer(1000, l);
+       timer.start();
+       setVisible(true);
+   }
+
+   class BeepAction extends AbstractAction{
+       @Override
+       public void actionPerformed(ActionEvent e){
+           Random r = new SecureRandom();
+           Toolkit.getDefaultToolkit().beep();
+           int i = r.nextInt(smilies.length);
+           final String msg = smilies[i];
+           jl.setText(msg);
+       }
+   }
+
+}
+
+@SuppressWarnings("serial")
+class TimerAction extends AbstractAction {
+   private final TimerLifecycle lifecycle;
+   private int currentSecond;
+
+   public TimerAction(TimerLifecycle lifecycle){
+       this.lifecycle = lifecycle;
+       this.currentSecond = lifecycle.getTimerMinute() * 60;
+       lifecycle.start();
+   }
+
+   @Override
+   public void actionPerformed(ActionEvent e){
+       if(currentSecond < 0){
+           return;
+       }
+       lifecycle.progressInSecond(--currentSecond);
+       if(currentSecond == 0){
+           currentSecond--;
+           lifecycle.end(TimerEnd.TIMEOUT);
+       }
+   }
+}
+
+enum TimerEnd {
+   TIMEOUT, CANCELLED;
+}
+
+interface TimerLifecycle {
+   public int getTimerMinute();
+   public void start();
+   public void progressInSecond(int second);
+   public void end(TimerEnd type);
+}
+
+class TimeUtil {
+   private TimeUtil(){}
+
+   public static String getSecondsFormatted(final int seconds){
+       // Print variables:
+       String pHr = null, pMin = null, pSec = null;
+
+       // All the dirty computations:
+       int min = seconds / 60;
+       int sec = seconds - (min * 60);
+       pSec = sec<10? "0"+sec: String.valueOf(sec);
+
+       if(min < 61){ // no hours part
+           pMin = min<10? "0"+min: String.valueOf(min);
+       }
+       else{ // hours part available :( [more computation!]
+           int hr = min / 60;
+           int hrMin = min - (hr*60);
+           pMin = hrMin<10? "0"+hrMin: String.valueOf(hrMin);
+           pHr = String.valueOf(hr);
+       }
+
+       // Build the final String:
+       StringBuilder sb = new StringBuilder();
+       if(pHr != null){
+           sb.append(pHr).append(":");
+       }
+       sb.append(pMin).append(":");
+       sb.append(pSec);
+       return sb.toString();
+   }
+}
+
+
